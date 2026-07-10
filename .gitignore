@@ -6,6 +6,9 @@ datasets_repo/
 datasets/
 test-dataset-mini-project-*/
 
+# --- Generated run reports (results/run_<timestamp>.md|json + explanations) --
+results/
+
 # --- Test / verification scratch dirs (created and cleaned by the harness) ---
 .tests-work.*/
 .verify.*/

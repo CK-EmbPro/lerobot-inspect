@@ -1,11 +1,13 @@
 # shellcheck shell=bash
 #
-# stats_report.sh — the six "questions to answer" (checks 1-6). These are
-# descriptive statistics, not pass/fail checks, so build_stats() emits a single
-# JSON object that becomes the dataset's "stats" field. Values are derived from
-# the authoritative sources: duration and episode count from episodes.jsonl,
-# fps/robot/cameras from info.json, size from du. Any disagreement with the
-# declared total_* fields is the job of check_metadata, not this reporter.
+# build_statistics.sh — the six DESCRIPTIVE "questions to answer" (checks 1-6): total
+# duration, episode count, fps, cameras, robot/tasks, on-disk size. These are
+# reported facts, not pass/fail checks (contrast check_stats.sh, which VALIDATES
+# statistics against stored values). build_stats() emits a single JSON object
+# that becomes the dataset's "stats" field, derived from the authoritative
+# sources: duration/episode count from episodes.jsonl, fps/robot/cameras from
+# info.json, size from du. Any disagreement with the declared total_* fields is
+# the job of check_metadata, not this producer.
 
 # build_stats DATASET_ROOT -> echoes the stats JSON object.
 build_stats() {

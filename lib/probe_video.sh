@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# video.sh — ffprobe wrappers. Frame counts come from the video stream, never
+# probe_video.sh — ffprobe wrappers. Frame counts come from the video stream, never
 # from the filename (the brief's rule). Two strategies, chosen by
 # LEROBOT_INSPECT_FRAME_MODE: "fast" reads the container's nb_frames header
 # (~12x faster); "exact" decodes every packet. fast auto-falls-back to exact

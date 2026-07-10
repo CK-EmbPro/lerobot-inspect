@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# result.sh — the single structured-result primitive. Every check emits exactly
+# emit_result.sh — the single structured-result primitive. Every check emits exactly
 # one result object; those objects are the ONE source of truth from which both
 # the human report and the --json report are rendered, so the two can never
 # disagree. jq builds the object, guaranteeing correct escaping of any detail

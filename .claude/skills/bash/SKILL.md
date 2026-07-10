@@ -374,6 +374,24 @@ Show dependencies in the usage function so users know requirements upfront.
 - **Keep Small**: Break down functions longer than 50 lines
 - **Use Local Variables**: Always declare with `local`
 
+#### File / Module Naming (verb-first, one job per file)
+When a script is split into a library of sourced modules, name each file for the
+**action it performs**, not the domain noun it touches — a developer should
+understand a file's job from its name alone, without opening it.
+
+- **Lead with an action verb:** `read_metadata.sh`, `probe_video.sh`,
+  `read_parquet.sh`, `build_report.sh`, `run_batch.sh`, `render_human.sh`. Family
+  prefixes `check_<aspect>.sh` and `report_<format>.sh` count (they lead with a
+  verb).
+- **Never a bare domain noun:** `video.sh`, `parquet.sh`, `batch.sh`,
+  `statistics.sh`, `result.sh`, `utils.sh` — a reader can't tell whether it reads,
+  writes, renders, or validates. One reasonable exception: `core.sh` for shared
+  primitives with no single verb.
+- **One job per file.** If a file does several things (discover + run + compare),
+  split it into one verb-named file per job.
+- Match the filename to the primary function where possible (`build_report()` →
+  `build_report.sh`), so name and behavior stay in sync.
+
 ### 5. Error Handling
 
 #### AVOID `set -e`

@@ -24,6 +24,10 @@ FAIL_COUNT=0
 WORK=""
 SRC=""
 
+# Don't litter results/ during the defect tests; the save feature has its own
+# dedicated test that re-enables saving into a temp dir.
+export LEROBOT_INSPECT_SAVE_RESULTS=false
+
 usage() {
     cat <<EOF
 
@@ -73,6 +77,7 @@ main() {
     test_misplaced_parquet
     test_strict_exit_code
     test_error_exit_codes
+    test_results_saved
 
     echo
     echo "==================================================="
@@ -212,6 +217,22 @@ test_error_exit_codes() {
     # jq/ffprobe/awk/du/find available -> a clean missing-dependency (exit 4).
     env PATH="/usr/bin:/bin" "$TOOL" "$SRC" >/dev/null 2>&1 && ec=0 || ec=$?
     assert_eq "missing dependency -> exit 4" 4 "$ec"
+}
+
+# A run should persist a markdown report AND an explanatory companion.
+test_results_saved() {
+    local d; d=$(make_copy results-save)
+    local res="$WORK/res"
+    LEROBOT_INSPECT_SAVE_RESULTS=true "$TOOL" --results-dir "$res" "$d" >/dev/null 2>&1 || true
+    local md json exp
+    md=$(find "$res" -name 'run_*.md' ! -name '*_explanation.md' 2>/dev/null | head -1)
+    json=$(find "$res" -name 'run_*.json' 2>/dev/null | head -1)
+    exp=$(find "$res" -name 'run_*_explanation.md' 2>/dev/null | head -1)
+    if [[ -f "$md" && -f "$json" && -f "$exp" ]]; then
+        pass "run saved markdown + json report + explanation"
+    else
+        fail "run missing a file (md='${md}' json='${json}' explanation='${exp}')"
+    fi
 }
 
 # --- helpers ---------------------------------------------------------------

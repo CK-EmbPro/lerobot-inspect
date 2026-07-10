@@ -1,8 +1,8 @@
 # shellcheck shell=bash disable=SC2034
 # (SC2034: the META/EP_*/CAM_*/TASK_* globals populated here are read by the
-#  check libraries that source this file, not within meta.sh itself.)
+#  check libraries that source this file, not within read_metadata.sh itself.)
 #
-# meta.sh — version-aware readers for LeRobot metadata. meta_load() parses
+# read_metadata.sh — version-aware readers for LeRobot metadata. meta_load() parses
 # meta/info.json, episodes.jsonl and tasks.jsonl exactly once into globals the
 # check libraries consume. Parsing is intentionally permissive: a missing or
 # empty field is recorded as "" and left for check_metadata to judge, so the

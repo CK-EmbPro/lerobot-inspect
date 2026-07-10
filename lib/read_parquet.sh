@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# parquet.sh — duckdb wrappers for reading parquet row counts, temporal series,
+# read_parquet.sh — duckdb wrappers for reading parquet row counts, temporal series,
 # and column statistics. Every function returns non-zero on a read error
 # (truncated/corrupt parquet, missing column) so callers can raise an integrity
 # failure with an exact message instead of crashing. Output is pipe-delimited

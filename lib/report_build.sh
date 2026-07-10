@@ -1,9 +1,10 @@
 # shellcheck shell=bash
 #
-# report_json.sh — assemble the final JSON document (check 14 roll-up) from the
-# array of per-dataset objects produced by inspect_one. This is the machine
-# output emitted on stdout under --json; the human report renders from the same
-# structure so the two can never disagree.
+# report_build.sh — assemble the canonical report document (check 14 roll-up)
+# from the array of per-dataset objects produced by inspect_one. This builder is
+# the single source of truth: the --json output is this document verbatim, and
+# every renderer (human / markdown / explanation) is derived from it, so they can
+# never disagree.
 
 # build_report DATASETS_ARRAY ANOMALIES_ARRAY TOOL VERSION GENERATED_AT
 build_report() {

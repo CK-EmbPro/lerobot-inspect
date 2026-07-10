@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# inspect.sh — orchestrates a single dataset (checks 12 & 14). meta_load parses
+# inspect_dataset.sh — orchestrates a single dataset (checks 12 & 14). meta_load parses
 # the metadata, build_stats answers checks 1-6, then every registered check
 # runs and emits one result. The results are aggregated into one dataset JSON
 # object with a PASS/FAIL verdict. This same function is the unit of work for

@@ -91,6 +91,9 @@ such datasets (found at any depth) is a **batch**. Both take the same code path.
 | `--tolerance <float>` | Absolute tolerance for statistical validation | `0.01` |
 | `--jobs <n>` | Max datasets inspected in parallel | CPU count |
 | `--frame-mode <fast\|exact>` | `fast` reads container headers; `exact` decodes every packet | `fast` |
+| `--results-dir <dir>` | Where to save run reports | `results` |
+| `--no-save` | Don't save a report file (terminal output only) | off |
+| `--no-explanation` | Save the report but skip the `_explanation.md` companion | off |
 | `-v`, `--verbose` | Verbose diagnostics on stderr | off |
 | `-h`, `--help` | Show help | — |
 | `--version` | Show version | — |
@@ -194,6 +197,30 @@ Field contract:
 - A dataset whose metadata cannot be parsed at all still gets a record with an
   `error` field and `verdict: "FAIL"` — the document is never truncated.
 
+## Saved results
+
+Every run also persists its report to timestamped files under `results/` (in
+addition to the terminal output), so you keep a history of inspections:
+
+```
+results/
+  run_10-07-2026_13-20-39.md              # the report as Markdown
+  run_10-07-2026_13-20-39.json            # the same report as JSON (always saved too)
+  run_10-07-2026_13-20-39_explanation.md  # an annotated companion (first_run.md style)
+```
+
+- Filenames are `run_DD-MM-YYYY_HH-MM-SS` (24-hour). **Both** the Markdown and
+  JSON reports are saved on every run — two views of the same data. The `--json`
+  flag only changes what is printed to the terminal, not what is saved.
+- The `_explanation.md` companion explains the report line by line — what each
+  check verifies and what each result means. Its content (the intro and the
+  per-check descriptions) lives in [`conf/lerobot-inspect.conf`](conf/lerobot-inspect.conf)
+  under `LEROBOT_INSPECT_EXPLAIN_INTRO` and `LEROBOT_INSPECT_CHECK_DOC`, so you
+  can tune how runs are explained without touching code.
+- Control it with `--no-save`, `--no-explanation`, `--results-dir <dir>`, or the
+  `LEROBOT_INSPECT_SAVE_RESULTS` / `LEROBOT_INSPECT_WRITE_EXPLANATION` /
+  `LEROBOT_INSPECT_TIMESTAMP_FMT` config keys. `results/` is gitignored.
+
 ## Testing
 
 The broken-dataset harness proves each corruption class is caught. It copies a
@@ -217,16 +244,21 @@ lerobot-inspect              # entrypoint: arg parsing, orchestration, exit code
 conf/lerobot-inspect.conf     # configurable defaults (tolerances, jobs, thresholds)
 lib/
   core.sh                    # exit codes, status algebra, logging, float helpers
-  deps.sh                    # dependency verification
-  meta.sh                    # version-aware metadata readers
-  video.sh   parquet.sh      # ffprobe / duckdb wrappers
-  result.sh                  # the single structured-result primitive
-  stats_report.sh            # statistics (checks 1-6)
+  verify_dependencies.sh     # verify external tools are installed
+  read_metadata.sh           # read/parse LeRobot metadata (info/episodes/tasks)
+  probe_video.sh             # ffprobe wrapper — read mp4 frame count + resolution
+  read_parquet.sh            # duckdb wrapper — read parquet counts, stats, timestamps
+  emit_result.sh             # the {check,status,detail,location} record each check emits
+  build_statistics.sh        # build descriptive statistics (checks 1-6)
   check_*.sh                 # one file per integrity check (7-11)
-  inspect.sh                 # per-dataset orchestration + verdict
-  batch.sh                   # discovery, concurrency, cross-dataset anomalies
-  report_json.sh report_human.sh  # two renderers from one JSON structure
+  inspect_dataset.sh         # per-dataset orchestration + verdict
+  discover_datasets.sh       # find dataset roots under the given paths
+  run_batch.sh               # inspect datasets concurrently (bounded)
+  flag_cross_dataset_anomalies.sh  # cross-dataset fps outlier flagging
+  report_build.sh            # assembles the canonical report document (+ roll-up)
+  report_human.sh report_markdown.sh report_explanation.sh  # renderers derived from that document
 tests/run-tests.sh           # broken-dataset test harness
+results/                     # generated: run_<timestamp>.md|json + explanations (gitignored)
 ```
 
 Adding a new check is one file plus one line — see [`DESIGN.md`](DESIGN.md).

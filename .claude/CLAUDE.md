@@ -111,16 +111,35 @@ Focused set for this project — delegate specialized work:
 
 ## Hooks
 
-`settings.json` registers a **PostToolUse** hook
-([`hooks/shellcheck-hook.sh`](hooks/shellcheck-hook.sh)) that runs `shellcheck`
-after any `Write`/`Edit`/`MultiEdit`. If it finds issues in a shell script, the
-findings are fed back so they get fixed — enforcing the brief's "shellcheck-clean
-at zero warnings" rule. If `shellcheck` isn't installed, the hook warns and skips
-(install with `apt install shellcheck`). Requires `$CLAUDE_PROJECT_DIR` (set by
-Claude Code); if unavailable, adjust the path in `settings.json`.
+`settings.json` registers two **PostToolUse** hooks:
+
+1. [`hooks/shellcheck-hook.sh`](hooks/shellcheck-hook.sh) runs `shellcheck` after
+   any `Write`/`Edit`/`MultiEdit`. Findings are fed back (exit 2) so they get
+   fixed — enforcing the brief's "shellcheck-clean at zero warnings" rule. If
+   `shellcheck` isn't installed, it warns and skips (`apt install shellcheck`).
+2. [`hooks/naming-convention-hook.sh`](hooks/naming-convention-hook.sh) runs on
+   `Write` and enforces the verb-first `lib/` naming rule above: a new
+   `lib/*.sh` that doesn't lead with an action verb (and isn't `core.sh`) is
+   rejected (exit 2) with instructions to rename it. Add a new verb to the hook's
+   allowlist if one is genuinely needed.
+
+Both require `$CLAUDE_PROJECT_DIR` (set by Claude Code); if unavailable, adjust
+the paths in `settings.json`.
 
 ## Conventions
 
+- **File naming — verb-first, one job per file (enforced by a hook).** Every
+  `lib/` module must be named for the ACTION it performs so a developer
+  understands its job from the filename alone: lead with an action verb
+  (`read_metadata.sh`, `probe_video.sh`, `read_parquet.sh`, `build_statistics.sh`,
+  `emit_result.sh`, `inspect_dataset.sh`, `discover_datasets.sh`, `run_batch.sh`,
+  `flag_cross_dataset_anomalies.sh`, `report_build.sh`, `render_*`), or use the
+  `check_<aspect>.sh` / `report_<format>.sh` families. **Never** a bare domain
+  noun (`video.sh`, `parquet.sh`, `batch.sh`, `statistics.sh`, `result.sh`) — a
+  reader can't tell what it does. `core.sh` (shared primitives) is the only
+  exception. If a file does more than one job, split it. The
+  `naming-convention-hook.sh` PostToolUse hook rejects a vaguely-named new
+  `lib/*.sh` and tells you to rename it.
 - Read-only toward any dataset — copy before you perturb (tests included).
 - Logs → stderr, data → stdout; everything composes in a pipe.
 - Tolerances and limits are configurable flags, never magic numbers.

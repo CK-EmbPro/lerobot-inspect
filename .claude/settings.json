@@ -10,6 +10,15 @@
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/shellcheck-hook.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/naming-convention-hook.sh"
+          }
+        ]
       }
     ]
   }

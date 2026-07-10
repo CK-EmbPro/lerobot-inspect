@@ -32,6 +32,9 @@ CLI architecture design:
 - Extension points
 - State management
 - Exit code strategy
+- File/module naming: verb-first, one job per file (`read_parquet.sh`,
+  `build_report.sh`, `check_files.sh`) so a dev grasps each file from its name —
+  never bare nouns (`parquet.sh`, `batch.sh`). See CLAUDE.md; a hook enforces it.
 
 Argument parsing:
 - Positional arguments

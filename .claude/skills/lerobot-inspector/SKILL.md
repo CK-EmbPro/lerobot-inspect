@@ -107,6 +107,13 @@ parquet, and reconcile them against the declared metadata.
 - `set -euo pipefail`, all variables quoted, **shellcheck-clean at zero warnings**.
 - **Read-only:** never modifies, moves, or writes into a dataset.
 - Two outputs: a human-readable report and a valid JSON report (`--json`).
+- **Run persistence (as built):** every run also saves its report to
+  `results/run_<DD-MM-YYYY_HH-MM-SS>.md` (or `.json` with `--json`) plus an
+  annotated `_explanation.md` companion. The explanatory intro and per-check
+  descriptions live in `conf/lerobot-inspect.conf`
+  (`LEROBOT_INSPECT_EXPLAIN_INTRO`, `LEROBOT_INSPECT_CHECK_DOC`) so the wording is
+  configurable, not hardcoded. Toggle with `--no-save` / `--no-explanation` /
+  `--results-dir`. Rendering lives in `lib/report_markdown.sh` and `lib/report_explanation.sh`.
 - **Documented exit codes** (ok / warnings / integrity failure / usage error) and
   a `--strict` flag that turns warnings into failures.
 - Precise error handling: malformed JSON, truncated parquet, missing `meta/`,
@@ -149,8 +156,11 @@ parquet, and reconcile them against the declared metadata.
    check pipeline before coding.
 2. Structure the script per the [`bash`](../bash/SKILL.md) skill (usage/main/
    functions/guard clause, explicit error handling).
-3. Implement checks 1–14 as small single-responsibility functions; each emits a
-   structured result feeding both the human and `--json` reports.
+3. Implement checks 1–14 as small single-responsibility functions in
+   **verb-first, one-job-per-file** `lib/` modules (`check_<aspect>.sh`,
+   `read_parquet.sh`, `build_statistics.sh`, `report_build.sh`, …) — never a bare
+   noun like `parquet.sh`/`batch.sh`. Each emits a structured result feeding the
+   human, JSON, and Markdown reports. The naming-convention hook enforces this.
 4. Build the broken-dataset generator alongside, TDD-style: every check gets a
    fixture that must trip it.
 5. Keep it shellcheck-clean throughout (the PostToolUse hook enforces this).

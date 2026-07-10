@@ -30,9 +30,14 @@ readonly CONF_FILE="${SCRIPT_DIR}/conf/lerobot-inspect.conf"
 : "${LEROBOT_INSPECT_JOBS:=}"
 : "${LEROBOT_INSPECT_FRAME_MODE:=fast}"
 : "${LEROBOT_INSPECT_OUTLIER_RATIO:=0.25}"
-for _lib in core deps meta result video parquet stats_report \
+: "${LEROBOT_INSPECT_RESULTS_DIR:=results}"
+: "${LEROBOT_INSPECT_SAVE_RESULTS:=true}"
+: "${LEROBOT_INSPECT_WRITE_EXPLANATION:=true}"
+: "${LEROBOT_INSPECT_TIMESTAMP_FMT:=%d-%m-%Y_%H-%M-%S}"
+for _lib in core verify_dependencies read_metadata emit_result probe_video read_parquet build_statistics \
             check_metadata check_files check_crossmodal check_temporal check_stats \
-            inspect batch report_json report_human; do
+            inspect_dataset discover_datasets run_batch flag_cross_dataset_anomalies \
+            report_build report_human report_markdown report_explanation; do
     # shellcheck source=/dev/null
     source "${LIB_DIR}/${_lib}.sh"
 done
@@ -57,9 +62,16 @@ options:
     --frame-mode <fast|exact>
                            Video frame counting: fast reads container headers,
                            exact decodes every packet (default: ${LEROBOT_INSPECT_FRAME_MODE:-fast}).
+    --results-dir <dir>    Where to save run reports (default: ${LEROBOT_INSPECT_RESULTS_DIR:-results}).
+    --no-save              Do not save a report file (terminal output only).
+    --no-explanation       Save the report but skip the *_explanation.md companion.
     -v, --verbose          Verbose diagnostics on stderr.
     -h, --help             Show this help.
     --version              Show version.
+
+Each run also writes, to results/, both run_<DD-MM-YYYY_HH-MM-SS>.md and .json
+plus an annotated run_..._explanation.md companion, unless disabled above.
+(--json only changes the terminal output, not what is saved.)
 
 exit codes:
     0  all datasets passed
@@ -92,6 +104,10 @@ main() {
                           LEROBOT_INSPECT_JOBS="$1" ;;
             --frame-mode) shift; [[ $# -gt 0 ]] || die "--frame-mode needs a value" "$EX_USAGE"
                           LEROBOT_INSPECT_FRAME_MODE="$1" ;;
+            --results-dir) shift; [[ $# -gt 0 ]] || die "--results-dir needs a value" "$EX_USAGE"
+                          LEROBOT_INSPECT_RESULTS_DIR="$1" ;;
+            --no-save)    LEROBOT_INSPECT_SAVE_RESULTS=false ;;
+            --no-explanation) LEROBOT_INSPECT_WRITE_EXPLANATION=false ;;
             -v|--verbose)
                           # shellcheck disable=SC2034  # read by log_debug in core.sh
                           LEROBOT_INSPECT_VERBOSE=1 ;;
@@ -129,7 +145,39 @@ main() {
         render_human "$doc"
     fi
 
+    persist_results "$doc"
+
     exit "$(_exit_code_for "$doc")"
+}
+
+# persist_results DOC — save the run under the results directory: always BOTH a
+# Markdown report and the JSON document (they are two views of the same data),
+# plus an explanatory companion unless disabled. The --json flag only affects
+# what is printed to the terminal, never what is saved. Saving never affects the
+# exit code; a failure to write only warns.
+persist_results() {
+    local doc="$1"
+    [[ "${LEROBOT_INSPECT_SAVE_RESULTS}" == true ]] || return 0
+
+    local dir="${LEROBOT_INSPECT_RESULTS_DIR}"
+    if ! mkdir -p "$dir" 2>/dev/null; then
+        log_warn "could not create results directory '${dir}'; not saving"
+        return 0
+    fi
+
+    local ts base
+    ts=$(date +"${LEROBOT_INSPECT_TIMESTAMP_FMT}")
+    base="${dir}/run_${ts}"
+
+    render_markdown "$doc" > "${base}.md"
+    log_info "report saved to ${base}.md"
+    printf '%s\n' "$doc" | jq '.' > "${base}.json"
+    log_info "report saved to ${base}.json"
+
+    if [[ "${LEROBOT_INSPECT_WRITE_EXPLANATION}" == true ]]; then
+        render_explanation "$doc" > "${base}_explanation.md"
+        log_info "explanation saved to ${base}_explanation.md"
+    fi
 }
 
 # _validate_runtime_options — reject invalid flag values up front (exit 3).

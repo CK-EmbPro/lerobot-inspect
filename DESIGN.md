@@ -9,14 +9,14 @@ so they can never disagree.
 
 ```mermaid
 flowchart TD
-    A[lerobot-inspect<br/>args, deps, exit code] --> B[batch.sh<br/>discover + concurrency]
-    B --> C[inspect.sh<br/>inspect_one per dataset]
-    C --> D[meta.sh<br/>version-aware parse]
-    C --> E[stats_report.sh<br/>checks 1-6]
+    A[lerobot-inspect<br/>args, deps, exit code] --> B[discover_datasets.sh + run_batch.sh<br/>discover + concurrency]
+    B --> C[inspect_dataset.sh<br/>inspect_one per dataset]
+    C --> D[read_metadata.sh<br/>version-aware parse]
+    C --> E[build_statistics.sh<br/>checks 1-6]
     C --> F[check_*.sh<br/>checks 7-11]
-    F --> G[parquet.sh / video.sh<br/>duckdb / ffprobe]
+    F --> G[read_parquet.sh / probe_video.sh<br/>duckdb / ffprobe]
     C --> H[dataset JSON object]
-    H --> I[report_json.sh]
+    H --> I[report_build.sh]
     H --> J[report_human.sh]
 ```
 
@@ -29,7 +29,7 @@ cross-dataset outliers, and hands the array to a renderer.
 **Extensibility (the "add a check on the spot" requirement):** a check is a
 function that calls `emit_result` once. To add one, write `lib/check_<name>.sh`,
 source it in the entrypoint, and add its name to `INSPECT_CHECKS` in
-`lib/inspect.sh`. Nothing else changes.
+`lib/inspect_dataset.sh`. Nothing else changes.
 
 ## Key assumptions
 

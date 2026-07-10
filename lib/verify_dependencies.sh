@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# deps.sh — declare and verify external tools. A missing dependency is an
+# verify_dependencies.sh — declare and verify external tools. A missing dependency is an
 # environment error (exit 4), reported with an exact, actionable message —
 # never a raw "command not found" from deep inside a check.
 

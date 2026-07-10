@@ -29,6 +29,9 @@ Code quality assessment:
 - Error handling
 - Resource management
 - Naming conventions
+- File/module naming: verb-first action names, one job per file — flag bare domain
+  nouns (video.sh, parquet.sh, batch.sh) and files doing more than one job (see
+  the project's naming convention in CLAUDE.md; a hook enforces it for `lib/*.sh`)
 - Code organization
 - Function complexity
 - Duplication detection
