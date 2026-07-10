@@ -1,4 +1,4 @@
-# lerobot-inspect edit
+# lerobot-inspect
 
 A read-only Bash tool that inspects **LeRobot datasets** — a single dataset or a
 whole batch — reports their statistics, verifies their integrity against the
