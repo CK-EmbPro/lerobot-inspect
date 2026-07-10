@@ -9,23 +9,57 @@ never reports `PASS` on a broken one.
 
 ---
 
-## Quick start
+## Getting started
+
+From a fresh clone, this is the full order of commands to go from nothing to
+seeing the anomalies in the datasets:
 
 ```bash
-# one dataset
-./lerobot-inspect ./datasets/dataset-1
+# 1. Enter the project
+cd lerobot_inspect
 
-# a batch (any folder containing datasets at any depth)
-./lerobot-inspect ./datasets
+# 2. Install every dependency + make the scripts executable.
+#    Run via `bash` the first time in case the +x bit was lost on download.
+bash bootstrap.sh
 
-# machine-readable report
-./lerobot-inspect --json ./datasets > report.json
+# 3. Put duckdb (installed into ~/.local/bin) on PATH for this shell.
+#    Without this, the tool can't find duckdb and exits 4.
+export PATH="$HOME/.local/bin:$PATH"
+
+# 4. Confirm everything is ready (optional — installs nothing).
+./bootstrap.sh --check
+
+# 5. Inspect ALL datasets — this is where the anomalies are reported.
+./lerobot-inspect ./datasets_repo/datasets
+```
+
+Step 5 prints a per-dataset report and a roll-up, and exits `2` when any dataset
+fails its integrity checks. Point the tool at **`datasets_repo/datasets`** (the
+clean datasets), not `datasets_repo` itself — the latter also holds the raw
+multi-part downloads, which are intentionally incomplete.
+
+### More ways to run it
+
+```bash
+# one dataset in detail
+./lerobot-inspect ./datasets_repo/datasets/dataset-1
+
+# machine-readable report -> just the verdict + issues per dataset
+./lerobot-inspect --json ./datasets_repo/datasets | jq '.datasets[] | {path, verdict, issues}'
 
 # treat warnings as failures, 8 datasets at a time
-./lerobot-inspect --strict --jobs 8 ./datasets
+./lerobot-inspect --strict --jobs 8 ./datasets_repo/datasets
+
+# prove it catches deliberately injected corruption (fast; uses the clean dataset-4)
+./tests/run-tests.sh
 ```
 
 ## Dependencies
+
+Run **`./bootstrap.sh`** to install all of these automatically — it detects your
+package manager (apt/dnf/pacman/brew), installs the system tools with `sudo`, and
+fetches the duckdb CLI into `~/.local/bin`. `./bootstrap.sh --check` reports
+what's missing without installing. Or install manually:
 
 | Tool | Purpose | Install |
 |------|---------|---------|
@@ -61,12 +95,12 @@ such datasets (found at any depth) is a **batch**. Both take the same code path.
 | `-h`, `--help` | Show help | — |
 | `--version` | Show version | — |
 
-Defaults live in [`etc/lerobot-inspect.conf`](etc/lerobot-inspect.conf) and can be
+Defaults live in [`conf/lerobot-inspect.conf`](conf/lerobot-inspect.conf) and can be
 overridden by an environment variable of the same name (`LEROBOT_INSPECT_*`) or a
 flag. **No magic numbers are baked into the code.**
 
 Logs go to **stderr**; the report (human or JSON) goes to **stdout**, so the tool
-composes in a pipe: `lerobot-inspect --json ./datasets | jq '.roll_up'`.
+composes in a pipe: `lerobot-inspect --json ./datasets_repo/datasets | jq '.roll_up'`.
 
 ## What it checks
 
@@ -97,12 +131,14 @@ the batch median).
 | Code | Meaning |
 |------|---------|
 | `0` | OK — all datasets passed |
-| `1` | Warnings (or any warning under `--strict`) |
-| `2` | Integrity failure — corruption detected |
+| `1` | Warnings present (without `--strict`) |
+| `2` | Integrity failure — corruption detected, **or any warning under `--strict`** |
 | `3` | Usage / argument error |
 | `4` | Missing dependency / environment error |
 
-The process exit code reflects the **worst** outcome across all datasets.
+The process exit code reflects the **worst** outcome across all datasets and
+always agrees with the JSON verdicts: `--strict` promotes warnings to `FAIL`
+(exit `2`); without it, warnings are exit `1`.
 
 ## JSON report schema
 
@@ -119,11 +155,11 @@ The process exit code reflects the **worst** outcome across all datasets.
     "failed": 3,
     "total_episodes": 556,
     "total_hours": 2.8965,
-    "cross_dataset_anomalies": ["./datasets/dataset-5: fps=29.68 deviates from batch median 40"]
+    "cross_dataset_anomalies": ["./datasets_repo/datasets/dataset-5: fps=29.68 deviates from batch median 40"]
   },
   "datasets": [
     {
-      "path": "./datasets/dataset-1",
+      "path": "./datasets_repo/datasets/dataset-1",
       "codebase_version": "v2.1",
       "verdict": "FAIL",
       "worst_status": "fail",
@@ -176,8 +212,9 @@ zero-byte video, perturbed stat, metadata lie, and a dropped video frame
 ## Project layout
 
 ```
+bootstrap.sh                 # one-command dependency installer (--check to dry-run)
 lerobot-inspect              # entrypoint: arg parsing, orchestration, exit codes
-etc/lerobot-inspect.conf     # configurable defaults (tolerances, jobs, thresholds)
+conf/lerobot-inspect.conf     # configurable defaults (tolerances, jobs, thresholds)
 lib/
   core.sh                    # exit codes, status algebra, logging, float helpers
   deps.sh                    # dependency verification

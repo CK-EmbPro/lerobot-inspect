@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+#
+# lerobot-inspect — read-only inspector for LeRobot datasets (single or batch).
+# Reports statistics, verifies on-disk integrity against the actual files, and
+# flags corruption precisely. See README.md for the full contract.
+#
+# The brief mandates `set -euo pipefail`; the check libraries layer explicit
+# guards on top so that expected non-zero results never abort a run.
+set -euo pipefail
+
+SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+readonly SCRIPT_NAME SCRIPT_DIR
+readonly VERSION="1.0.0"
+readonly LIB_DIR="${SCRIPT_DIR}/lib"
+readonly CONF_FILE="${SCRIPT_DIR}/conf/lerobot-inspect.conf"
+
+# Configuration defaults first, then the libraries (order matters: later files
+# depend on core/meta/etc. being defined).
+# shellcheck source=/dev/null  # config path is resolved at runtime
+[[ -f "$CONF_FILE" ]] && source "$CONF_FILE"
+
+# Seed defaults in code so the tool is self-contained even if etc/ is absent or a
+# value is unset — the conf file overrides these, flags override the conf. Never
+# leave a runtime knob unset under `set -u` (that would be a raw crash, not a
+# graceful error).
+: "${LEROBOT_INSPECT_TOLERANCE:=0.01}"
+: "${LEROBOT_INSPECT_FPS_TOLERANCE_S:=0.04}"
+: "${LEROBOT_INSPECT_FPS_REL_TOL:=0.10}"
+: "${LEROBOT_INSPECT_JOBS:=}"
+: "${LEROBOT_INSPECT_FRAME_MODE:=fast}"
+: "${LEROBOT_INSPECT_OUTLIER_RATIO:=0.25}"
+for _lib in core deps meta result video parquet stats_report \
+            check_metadata check_files check_crossmodal check_temporal check_stats \
+            inspect batch report_json report_human; do
+    # shellcheck source=/dev/null
+    source "${LIB_DIR}/${_lib}.sh"
+done
+unset _lib
+
+usage() {
+    cat <<EOF
+
+${SCRIPT_NAME} ${VERSION} — inspect LeRobot datasets, verify integrity, flag corruption.
+
+usage: ${SCRIPT_NAME} [options] <dataset|batch-folder> [more paths...]
+
+A path containing meta/info.json is a single dataset; a folder containing such
+datasets (at any depth) is a batch. Both use the same code path.
+
+options:
+    --json                 Emit the machine-readable JSON report on stdout.
+    --strict               Promote warnings to failures (verdict + exit code).
+    --tolerance <float>    Absolute tolerance for statistical validation
+                           (default: ${LEROBOT_INSPECT_TOLERANCE:-0.01}).
+    --jobs <n>             Max datasets to inspect in parallel (default: CPU count).
+    --frame-mode <fast|exact>
+                           Video frame counting: fast reads container headers,
+                           exact decodes every packet (default: ${LEROBOT_INSPECT_FRAME_MODE:-fast}).
+    -v, --verbose          Verbose diagnostics on stderr.
+    -h, --help             Show this help.
+    --version              Show version.
+
+exit codes:
+    0  all datasets passed
+    1  warnings present (without --strict)
+    2  integrity failure (corruption), or any warning under --strict
+    3  usage / argument error
+    4  missing dependency / environment error
+
+dependencies: jq ffprobe duckdb awk du find
+
+examples:
+    ${SCRIPT_NAME} ./datasets_repo/datasets/dataset-1
+    ${SCRIPT_NAME} --json ./datasets_repo/datasets > report.json
+    ${SCRIPT_NAME} --strict --jobs 8 ./datasets_repo/datasets
+
+EOF
+}
+
+main() {
+    local as_json=false strict=false
+    local -a paths=()
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)       as_json=true ;;
+            --strict)     strict=true ;;
+            --tolerance)  shift; [[ $# -gt 0 ]] || die "--tolerance needs a value" "$EX_USAGE"
+                          LEROBOT_INSPECT_TOLERANCE="$1" ;;
+            --jobs)       shift; [[ $# -gt 0 ]] || die "--jobs needs a value" "$EX_USAGE"
+                          LEROBOT_INSPECT_JOBS="$1" ;;
+            --frame-mode) shift; [[ $# -gt 0 ]] || die "--frame-mode needs a value" "$EX_USAGE"
+                          LEROBOT_INSPECT_FRAME_MODE="$1" ;;
+            -v|--verbose)
+                          # shellcheck disable=SC2034  # read by log_debug in core.sh
+                          LEROBOT_INSPECT_VERBOSE=1 ;;
+            --version)    printf '%s %s\n' "$SCRIPT_NAME" "$VERSION"; exit "$EX_OK" ;;
+            -h|--help)    usage; exit "$EX_OK" ;;
+            --)           shift; while [[ $# -gt 0 ]]; do paths+=("$1"); shift; done; break ;;
+            -*)           die "unknown option: $1 (see --help)" "$EX_USAGE" ;;
+            *)            paths+=("$1") ;;
+        esac
+        shift
+    done
+
+    (( ${#paths[@]} > 0 )) || die "no dataset path given (see --help)" "$EX_USAGE"
+    _validate_runtime_options
+
+    require_dependencies
+
+    local jobs; jobs=$(_resolve_jobs)
+    local datasets; datasets=$(discover_datasets "${paths[@]}") \
+        || die "no LeRobot dataset (meta/info.json) found under: ${paths[*]}" "$EX_USAGE"
+
+    local -a roots=()
+    mapfile -t roots <<< "$datasets"
+    log_info "Inspecting ${#roots[@]} dataset(s) with ${jobs} parallel job(s)..."
+
+    local datasets_json anomalies generated_at doc
+    datasets_json=$(run_batch "$strict" "$jobs" "${roots[@]}")
+    anomalies=$(flag_cross_dataset_anomalies "$datasets_json" "${LEROBOT_INSPECT_OUTLIER_RATIO:-0.25}")
+    generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    doc=$(build_report "$datasets_json" "$anomalies" "$SCRIPT_NAME" "$VERSION" "$generated_at")
+
+    if [[ "$as_json" == true ]]; then
+        printf '%s\n' "$doc" | jq '.'
+    else
+        render_human "$doc"
+    fi
+
+    exit "$(_exit_code_for "$doc")"
+}
+
+# _validate_runtime_options — reject invalid flag values up front (exit 3).
+_validate_runtime_options() {
+    [[ "${LEROBOT_INSPECT_TOLERANCE}" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || die "invalid --tolerance: '${LEROBOT_INSPECT_TOLERANCE}' (want a number)" "$EX_USAGE"
+    case "${LEROBOT_INSPECT_FRAME_MODE}" in
+        fast|exact) ;;
+        *) die "invalid --frame-mode: '${LEROBOT_INSPECT_FRAME_MODE}' (want fast|exact)" "$EX_USAGE" ;;
+    esac
+    if [[ -n "${LEROBOT_INSPECT_JOBS}" && ! "${LEROBOT_INSPECT_JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+        die "invalid --jobs: '${LEROBOT_INSPECT_JOBS}' (want a positive integer)" "$EX_USAGE"
+    fi
+}
+
+# _resolve_jobs — configured job count, or the CPU count when unset.
+_resolve_jobs() {
+    if [[ -n "${LEROBOT_INSPECT_JOBS}" ]]; then
+        printf '%s' "${LEROBOT_INSPECT_JOBS}"
+        return
+    fi
+    local n; n=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+    printf '%s' "$n"
+}
+
+# _exit_code_for DOC — worst outcome across all datasets → documented exit code.
+# Uses the per-dataset verdict (which already reflects --strict) for the failure
+# decision, so that a strict-promoted FAIL exits 2 in agreement with the JSON —
+# never a verdict of FAIL alongside a non-failure exit code.
+_exit_code_for() {
+    local outcome
+    outcome=$(jq -r '
+        if   any(.datasets[]; .verdict == "FAIL")   then "fail"
+        elif any(.datasets[]; .worst_status == "warn") then "warn"
+        else "ok" end' <<< "$1")
+    case "$outcome" in
+        fail) echo "$EX_INTEGRITY" ;;
+        warn) echo "$EX_WARN" ;;
+        *)    echo "$EX_OK" ;;
+    esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

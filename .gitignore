@@ -1,0 +1,24 @@
+# --- Datasets (large binary data — never push to GitHub) --------------------
+# The merged datasets and the raw multi-part downloads together are ~14 GB, far
+# beyond GitHub's practical limits. Distribute data via the Hugging Face Hub /
+# DVC / cloud storage instead (see README). The tool reads them at runtime.
+datasets_repo/
+datasets/
+test-dataset-mini-project-*/
+
+# --- Test / verification scratch dirs (created and cleaned by the harness) ---
+.tests-work.*/
+.verify.*/
+
+# --- Tooling / editor / OS noise --------------------------------------------
+*.log
+*.output
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Local working notes (not a deliverable) --------------------------------
+10TH_Friday changes.txt
