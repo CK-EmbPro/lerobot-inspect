@@ -14,7 +14,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly SCRIPT_DIR
 readonly TOOL="${SCRIPT_DIR}/../lerobot-inspect"
-readonly DEFAULT_SRC="${SCRIPT_DIR}/../datasets_repo/datasets/dataset-4"
+readonly DEFAULT_SRC="${SCRIPT_DIR}/../datasets/dataset-4"
 
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'; NC=$'\033[0m'
 [[ -t 1 ]] || { RED=""; GREEN=""; YELLOW=""; NC=""; }

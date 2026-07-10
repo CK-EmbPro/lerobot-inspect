@@ -5,7 +5,9 @@
 # non-packaged duckdb CLI is fetched as a static binary into ~/.local/bin.
 #
 # System packages use sudo (or run as root); duckdb never needs it. Idempotent:
-# anything already present is left alone. Use --check to report status without
+# anything already present is left alone. It also makes the project scripts
+# executable and verifies that datasets are present to inspect — if none are
+# found, bootstrap does not report ready. Use --check to report status without
 # installing.
 set -euo pipefail
 
@@ -26,6 +28,11 @@ readonly PROJECT_EXECUTABLES=(
 readonly BIN_DIR="${HOME}/.local/bin"
 # Pinned for reproducibility; override with DUCKDB_VERSION=x.y.z ./bootstrap.sh
 readonly DUCKDB_VERSION="${DUCKDB_VERSION:-1.5.4}"
+
+# The tool has nothing to run on without data. bootstrap verifies that at least
+# one dataset (a folder containing meta/info.json) exists here; if not, it does
+# NOT report ready. Override the location with LEROBOT_INSPECT_DATASETS_DIR.
+readonly DATASETS_DIR="${LEROBOT_INSPECT_DATASETS_DIR:-${SCRIPT_DIR}/datasets}"
 
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'; BLUE=$'\033[0;34m'; NC=$'\033[0m'
 if [[ ! -t 1 || -n "${NO_COLOR:-}" ]]; then RED=""; GREEN=""; YELLOW=""; BLUE=""; NC=""; fi
@@ -49,7 +56,9 @@ usage: ${SCRIPT_NAME} [--check] [-h|--help] [--version]
 
 Installs: jq, ffmpeg (ffprobe), shellcheck, unzip via the system package manager
 (apt/dnf/pacman/brew, using sudo), and the duckdb CLI as a static binary into
-${BIN_DIR}. Verifies the coreutils (awk, du, find) the tool also relies on.
+${BIN_DIR}. Verifies the coreutils (awk, du, find), makes the project scripts
+executable, and checks that at least one dataset is present under
+${DATASETS_DIR#"${SCRIPT_DIR}/"}/ (bootstrap does not report ready without data).
 
 EOF
 }
@@ -86,6 +95,9 @@ main() {
     for s in "${PROJECT_EXECUTABLES[@]}"; do
         ensure_executable "$s" || true
     done
+
+    # The tool needs data — verify at least one dataset is present to inspect.
+    check_datasets || true
 
     check_path_hint
     summarize
@@ -239,6 +251,33 @@ ensure_executable() {
     fi
 }
 
+# check_datasets — verify at least one inspectable dataset (a directory with
+# meta/info.json) exists under DATASETS_DIR. bootstrap cannot install data, so a
+# miss is reported (and fails the run) with guidance rather than fixed.
+check_datasets() {
+    local n=0
+    [[ -d "$DATASETS_DIR" ]] && n=$(find "$DATASETS_DIR" -type f -path '*/meta/info.json' 2>/dev/null | wc -l)
+
+    # Friendly location: "./datasets/ in the root folder of this project" for the
+    # default (a path inside SCRIPT_DIR), or the given path for an override.
+    local where
+    if [[ "$DATASETS_DIR" == "${SCRIPT_DIR}/"* ]]; then
+        where="./${DATASETS_DIR#"${SCRIPT_DIR}/"}/ in the root folder of this project"
+    else
+        where="${DATASETS_DIR}/"
+    fi
+
+    if (( n > 0 )); then
+        ok "datasets present — ${n} dataset(s) under ${where}"
+        return 0
+    fi
+    MISSING=$(( MISSING + 1 ))
+    err "no datasets found under ${where}"
+    err "  place your LeRobot datasets there — each a folder containing meta/info.json."
+    err "  the tool has nothing to inspect until they exist (see README, 'Getting the data')."
+    return 1
+}
+
 # verify_present CMD — coreutils check (never auto-installed).
 verify_present() {
     if command -v "$1" >/dev/null 2>&1; then
@@ -261,14 +300,14 @@ check_path_hint() {
 summarize() {
     echo
     if (( MISSING == 0 )); then
-        printf '%s✔ all dependencies satisfied.%s Run: ./lerobot-inspect --help\n' "$GREEN" "$NC"
+        printf '%s✔ ready.%s Dependencies installed and datasets present. Run: ./lerobot-inspect ./datasets\n' "$GREEN" "$NC"
         exit 0
     fi
     if [[ "$CHECK_ONLY" == true ]]; then
-        printf '%s! %d item(s) need attention.%s Run ./%s (without --check) to fix.\n' \
+        printf '%s! %d item(s) need attention.%s Run ./%s (without --check) to fix installable ones.\n' \
             "$YELLOW" "$MISSING" "$NC" "$SCRIPT_NAME"
     else
-        printf '%s✗ %d item(s) could not be resolved.%s See messages above.\n' \
+        printf '%s✗ %d item(s) still missing (deps and/or datasets).%s See messages above.\n' \
             "$RED" "$MISSING" "$NC"
     fi
     exit 1

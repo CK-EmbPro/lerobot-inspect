@@ -16,8 +16,8 @@ flowchart TD
     C --> F[check_*.sh<br/>checks 7-11]
     F --> G[read_parquet.sh / probe_video.sh<br/>duckdb / ffprobe]
     C --> H[dataset JSON object]
-    H --> I[report_build.sh]
-    H --> J[report_human.sh]
+    H --> I[report_build.sh<br/>assemble doc + roll-up]
+    I --> J[render: human / markdown / explanation<br/>+ save .md & .json to results/]
 ```
 
 Data flow: `meta_load` parses metadata once into a few globals → `build_stats`
@@ -43,6 +43,10 @@ source it in the entrypoint, and add its name to `INSPECT_CHECKS` in
 - **Stored std is population std** (numpy default, `ddof=0`) — matched with
   duckdb `stddev_pop`; verified against clean data to 6–9 decimals.
 - **Frame counts** come from the video stream (`ffprobe`), never the filename.
+- **Data must be present, no default path.** The tool inspects whatever path it is
+  given (no hardcoded locations). By convention datasets live under `./datasets/`
+  (each a folder with `meta/info.json`); `bootstrap.sh` refuses to report ready if
+  none are found there, since the tool has nothing to check without data.
 
 ## Tradeoffs
 
@@ -66,6 +70,11 @@ source it in the entrypoint, and add its name to `INSPECT_CHECKS` in
 - **Image-feature stats are not recomputed:** their pixels live in the mp4s, not
   the parquet, so only numeric columns (`observation.state`, `action`) are
   validated. Stated explicitly rather than silently skipped.
+- **Every run is persisted.** Beyond the terminal output, each run writes both a
+  Markdown and a JSON report (plus an annotated `_explanation.md`) to `results/`,
+  all rendered from the same document — so the human and machine views can't
+  drift, and a timestamped history is kept. `--json` changes only the terminal
+  output, never what is saved.
 
 ## What I'd improve
 

@@ -30,25 +30,37 @@ export PATH="$HOME/.local/bin:$PATH"
 ./bootstrap.sh --check
 
 # 5. Inspect ALL datasets — this is where the anomalies are reported.
-./lerobot-inspect ./datasets_repo/datasets
+./lerobot-inspect ./datasets
 ```
 
 Step 5 prints a per-dataset report and a roll-up, and exits `2` when any dataset
-fails its integrity checks. Point the tool at **`datasets_repo/datasets`** (the
-clean datasets), not `datasets_repo` itself — the latter also holds the raw
-multi-part downloads, which are intentionally incomplete.
+fails its integrity checks.
+
+### Getting the data
+
+The datasets to inspect live under **`./datasets/`**, each as its own folder that
+contains `meta/info.json` — e.g. `datasets/dataset-1`, `datasets/dataset-2`, …
+(a LeRobot dataset is that folder with its `meta/`, `data/`, and `videos/`
+together; `./datasets/` just holds one or more of them side by side).
+
+`bootstrap.sh` **checks for this**: in step 2 it verifies at least one dataset
+exists under `./datasets/`, and if none are found it does **not** report ready —
+it fails with guidance, so you always know to place the data there before
+running. Override the location with `LEROBOT_INSPECT_DATASETS_DIR=/path ./bootstrap.sh`.
+The `datasets/` folder is gitignored (it's large binary data — distribute it via
+the Hugging Face Hub / DVC / cloud storage, not GitHub).
 
 ### More ways to run it
 
 ```bash
 # one dataset in detail
-./lerobot-inspect ./datasets_repo/datasets/dataset-1
+./lerobot-inspect ./datasets/dataset-1
 
 # machine-readable report -> just the verdict + issues per dataset
-./lerobot-inspect --json ./datasets_repo/datasets | jq '.datasets[] | {path, verdict, issues}'
+./lerobot-inspect --json ./datasets | jq '.datasets[] | {path, verdict, issues}'
 
 # treat warnings as failures, 8 datasets at a time
-./lerobot-inspect --strict --jobs 8 ./datasets_repo/datasets
+./lerobot-inspect --strict --jobs 8 ./datasets
 
 # prove it catches deliberately injected corruption (fast; uses the clean dataset-4)
 ./tests/run-tests.sh
@@ -103,7 +115,7 @@ overridden by an environment variable of the same name (`LEROBOT_INSPECT_*`) or 
 flag. **No magic numbers are baked into the code.**
 
 Logs go to **stderr**; the report (human or JSON) goes to **stdout**, so the tool
-composes in a pipe: `lerobot-inspect --json ./datasets_repo/datasets | jq '.roll_up'`.
+composes in a pipe: `lerobot-inspect --json ./datasets | jq '.roll_up'`.
 
 ## What it checks
 
@@ -158,11 +170,11 @@ always agrees with the JSON verdicts: `--strict` promotes warnings to `FAIL`
     "failed": 3,
     "total_episodes": 556,
     "total_hours": 2.8965,
-    "cross_dataset_anomalies": ["./datasets_repo/datasets/dataset-5: fps=29.68 deviates from batch median 40"]
+    "cross_dataset_anomalies": ["./datasets/dataset-5: fps=29.68 deviates from batch median 40"]
   },
   "datasets": [
     {
-      "path": "./datasets_repo/datasets/dataset-1",
+      "path": "./datasets/dataset-1",
       "codebase_version": "v2.1",
       "verdict": "FAIL",
       "worst_status": "fail",

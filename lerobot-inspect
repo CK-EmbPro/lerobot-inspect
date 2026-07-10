@@ -83,9 +83,9 @@ exit codes:
 dependencies: jq ffprobe duckdb awk du find
 
 examples:
-    ${SCRIPT_NAME} ./datasets_repo/datasets/dataset-1
-    ${SCRIPT_NAME} --json ./datasets_repo/datasets > report.json
-    ${SCRIPT_NAME} --strict --jobs 8 ./datasets_repo/datasets
+    ${SCRIPT_NAME} ./datasets/dataset-1
+    ${SCRIPT_NAME} --json ./datasets > report.json
+    ${SCRIPT_NAME} --strict --jobs 8 ./datasets
 
 EOF
 }
